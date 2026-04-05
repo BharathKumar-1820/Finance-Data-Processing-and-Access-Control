@@ -5,7 +5,7 @@ from models.models import User, Role
 from schemas.user import UserCreate, UserResponse, UserUpdate
 from utils.database import get_db
 from utils.auth import hash_password
-from utils.auth_dependency import get_current_user
+from utils.auth_dependency import get_current_user, RoleChecker
 from typing import List
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -15,18 +15,9 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def create_user(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['admin']))
 ):
     """Create a new user (Admin only)"""
-    # Check if current user is admin
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id != admin_role_obj.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can create users"
-        )
     
     # Check if user already exists
     stmt = select(User).where(User.username == user_data.username)
@@ -79,18 +70,9 @@ async def list_users(
     skip: int = 0,
     limit: int = 10,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['admin']))
 ):
     """List all users with pagination (Admin only)"""
-    # Check if current user is admin
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id != admin_role_obj.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can view all users"
-        )
     
     stmt = select(User).offset(skip).limit(limit)
     result = await db.execute(stmt)
@@ -108,10 +90,7 @@ async def get_user(
 ):
     """Get user details (self or admin only)"""
     # Check if admin or accessing own profile
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.id != target_user_id and current_user.role_id != admin_role_obj.id:
+    if current_user.id != target_user_id and current_user.role.name != 'admin':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only view your own profile"
@@ -136,18 +115,9 @@ async def update_user(
     target_user_id: int,
     user_data: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['admin']))
 ):
     """Update user details (admin only)"""
-    # Check if admin updating profile
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id != admin_role_obj.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can update user profiles"
-        )
     
     stmt = select(User).where(User.id == target_user_id)
     result = await db.execute(stmt)
@@ -163,8 +133,9 @@ async def update_user(
     if user_data.username:
         # Check if username is unique
         stmt = select(User).where(User.username == user_data.username)
-        existing = await db.execute(stmt)
-        if existing.scalar_one_or_none() and existing.scalar_one_or_none().id != target_user_id:
+        existing_result = await db.execute(stmt)
+        existing_user = existing_result.scalar_one_or_none()
+        if existing_user and existing_user.id != target_user_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already taken"
@@ -174,8 +145,9 @@ async def update_user(
     if user_data.email:
         # Check if email is unique
         stmt = select(User).where(User.email == user_data.email)
-        existing = await db.execute(stmt)
-        if existing.scalar_one_or_none() and existing.scalar_one_or_none().id != target_user_id:
+        existing_result = await db.execute(stmt)
+        existing_user = existing_result.scalar_one_or_none()
+        if existing_user and existing_user.id != target_user_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already taken"
@@ -185,7 +157,7 @@ async def update_user(
     if user_data.password:
         user.password_hash = hash_password(user_data.password)
     
-    if user_data.is_active is not None and current_user.role_id == admin_role_obj.id:
+    if user_data.is_active is not None:
         user.is_active = user_data.is_active
     
     await db.commit()

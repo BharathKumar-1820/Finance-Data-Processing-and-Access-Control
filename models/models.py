@@ -9,7 +9,7 @@ class Role(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(50), unique=True, nullable=False)
     description = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationship
     users = relationship("User", back_populates="role")
@@ -27,10 +27,10 @@ class User(Base):
     password_hash = Column(String(128), nullable=False)
     is_active = Column(Boolean, default=True)
     role_id = Column(Integer, ForeignKey('roles.id'), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationships
-    role = relationship("Role", back_populates="users")
+    role = relationship("Role", back_populates="users", lazy="selectin")
     financial_records = relationship("FinancialRecord", back_populates="user")
 
     def __str__(self):
@@ -47,7 +47,7 @@ class FinancialRecord(Base):
     category = Column(String(100), nullable=False)
     date = Column(Date, nullable=False)
     description = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationship
     user = relationship("User", back_populates="financial_records")

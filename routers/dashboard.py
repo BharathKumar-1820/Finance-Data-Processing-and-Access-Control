@@ -5,7 +5,7 @@ from sqlalchemy import func
 from models.models import FinancialRecord, User, Role
 from schemas.dashboard import SummaryResponse, CategoryBreakdownResponse, RecentActivityResponse, TrendDataResponse
 from utils.database import get_db
-from utils.auth_dependency import get_current_user
+from utils.auth_dependency import get_current_user, RoleChecker
 from typing import List
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
@@ -16,16 +16,13 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("/summary", response_model=SummaryResponse)
 async def get_summary(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['viewer', 'analyst', 'admin']))
 ):
     """Get total income, expense and net balance"""
-    # All roles can view the summary, but scope differs by role
-    viewer_role = await db.execute(select(Role).where(Role.name == 'viewer'))
-    viewer_role_obj = viewer_role.scalar_one_or_none()
     
     # For viewers, show only their own data
     # For analysts and admins, show all data
-    if current_user.role_id == viewer_role_obj.id:
+    if current_user.role.name == 'viewer':
         # Calculate total income for viewer
         income_stmt = select(func.sum(FinancialRecord.amount)).where(
             (FinancialRecord.user_id == current_user.id) &
@@ -65,21 +62,9 @@ async def get_summary(
 @router.get("/category-breakdown", response_model=List[CategoryBreakdownResponse])
 async def get_category_breakdown(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['analyst', 'admin']))
 ):
     """Get income and expense breakdown by category"""
-    # Analysts and admins can view category breakdown for all users
-    analyst_role = await db.execute(select(Role).where(Role.name == 'analyst'))
-    analyst_role_obj = analyst_role.scalar_one_or_none()
-    
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id not in [analyst_role_obj.id, admin_role_obj.id]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only analysts and admins can view category breakdown"
-        )
     
     # Get category totals for all records (analysts have cross-user visibility)
     stmt = select(
@@ -103,15 +88,13 @@ async def get_category_breakdown(
 async def get_recent_activity(
     limit: int = 10,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['viewer', 'analyst', 'admin']))
 ):
     """Get recent financial transactions"""
     # Viewers see their own recent activity
     # Analysts and admins see all recent activity
-    viewer_role = await db.execute(select(Role).where(Role.name == 'viewer'))
-    viewer_role_obj = viewer_role.scalar_one_or_none()
     
-    if current_user.role_id == viewer_role_obj.id:
+    if current_user.role.name == 'viewer':
         stmt = select(FinancialRecord).where(
             FinancialRecord.user_id == current_user.id
         ).order_by(
@@ -134,21 +117,9 @@ async def get_recent_activity(
 async def get_trends(
     months: int = 6,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['analyst', 'admin']))
 ):
     """Get monthly income and expense trends"""
-    # Check if user is analyst or admin
-    analyst_role = await db.execute(select(Role).where(Role.name == 'analyst'))
-    analyst_role_obj = analyst_role.scalar_one_or_none()
-    
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id not in [analyst_role_obj.id, admin_role_obj.id]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only analysts and admins can view trends"
-        )
     
     # Calculate date range
     end_date = datetime.now(timezone.utc)

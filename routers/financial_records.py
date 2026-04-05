@@ -5,29 +5,18 @@ from sqlalchemy import func, and_
 from models.models import FinancialRecord, User, Role
 from schemas.financial_record import FinancialRecordCreate, FinancialRecordResponse, FinancialRecordUpdate
 from utils.database import get_db
-from utils.auth_dependency import get_current_user
+from utils.auth_dependency import get_current_user, RoleChecker
 from typing import List, Optional
 from datetime import date
-
-router = APIRouter(prefix="/records", tags=["records"])
-
+router = APIRouter(prefix="/records", tags=["financial_records"])
 # POST /records - Create a financial record
 @router.post("", response_model=FinancialRecordResponse, status_code=status.HTTP_201_CREATED)
 async def create_record(
     record_data: FinancialRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['admin']))
 ):
     """Create a new financial record (Admin only)"""
-    # Check if user is admin
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id != admin_role_obj.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can create records"
-        )
     
     # Create new record
     new_record = FinancialRecord(
@@ -56,27 +45,12 @@ async def list_records(
     start_date: Optional[date] = Query(None, description="Filter from date"),
     end_date: Optional[date] = Query(None, description="Filter to date"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['viewer', 'analyst', 'admin']))
 ):
     """List financial records with optional filtering (All roles)"""
-    # Check permission - viewers, analysts, and admins can view records
-    viewer_role = await db.execute(select(Role).where(Role.name == 'viewer'))
-    viewer_role_obj = viewer_role.scalar_one_or_none()
-    
-    analyst_role = await db.execute(select(Role).where(Role.name == 'analyst'))
-    analyst_role_obj = analyst_role.scalar_one_or_none()
-    
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id not in [viewer_role_obj.id, analyst_role_obj.id, admin_role_obj.id]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Authentication required to view records"
-        )
     
     # Build query - viewers see only their own, analysts and admins see all
-    if current_user.role_id == viewer_role_obj.id:
+    if current_user.role.name == 'viewer':
         stmt = select(FinancialRecord).where(FinancialRecord.user_id == current_user.id)
     else:
         # Analysts and admins can see all records
@@ -108,24 +82,9 @@ async def list_records(
 async def get_record(
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['viewer', 'analyst', 'admin']))
 ):
     """Get a single financial record (All roles)"""
-    # Check permission - viewers, analysts, and admins can view records
-    viewer_role = await db.execute(select(Role).where(Role.name == 'viewer'))
-    viewer_role_obj = viewer_role.scalar_one_or_none()
-    
-    analyst_role = await db.execute(select(Role).where(Role.name == 'analyst'))
-    analyst_role_obj = analyst_role.scalar_one_or_none()
-    
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id not in [viewer_role_obj.id, analyst_role_obj.id, admin_role_obj.id]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Authentication required to view records"
-        )
     
     stmt = select(FinancialRecord).where(FinancialRecord.id == record_id)
     result = await db.execute(stmt)
@@ -138,20 +97,12 @@ async def get_record(
         )
     
     # Viewers can only see their own records
-    if current_user.role_id == viewer_role_obj.id and record.user_id != current_user.id:
+    if current_user.role.name == 'viewer' and record.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only view your own records"
         )
-    result = await db.execute(stmt)
-    record = result.scalar_one_or_none()
-    
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Record not found"
-        )
-    
+
     return record
 
 
@@ -161,18 +112,9 @@ async def update_record(
     record_id: int,
     record_data: FinancialRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['admin']))
 ):
     """Update a financial record (Admin only)"""
-    # Check if user is admin
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id != admin_role_obj.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can update records"
-        )
     
     stmt = select(FinancialRecord).where(FinancialRecord.id == record_id)
     result = await db.execute(stmt)
@@ -216,19 +158,9 @@ async def update_record(
 async def delete_record(
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(['admin']))
 ):
     """Delete a financial record (admin only)"""
-    # Check if user is admin
-    admin_role = await db.execute(select(Role).where(Role.name == 'admin'))
-    admin_role_obj = admin_role.scalar_one_or_none()
-    
-    if current_user.role_id != admin_role_obj.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can delete records"
-        )
-    
     stmt = select(FinancialRecord).where(FinancialRecord.id == record_id)
     result = await db.execute(stmt)
     record = result.scalar_one_or_none()

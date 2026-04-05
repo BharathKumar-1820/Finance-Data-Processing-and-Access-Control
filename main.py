@@ -48,9 +48,9 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(users.router, prefix="/api", tags=["users"])
-app.include_router(financial_records.router, prefix="/api", tags=["financial_records"])
-app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
+app.include_router(users.router, prefix="/api")
+app.include_router(financial_records.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
 
 # Exception handlers
 @app.exception_handler(NotFoundError)
