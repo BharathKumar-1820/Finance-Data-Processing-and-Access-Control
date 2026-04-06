@@ -20,11 +20,26 @@ class UserResponse(BaseModel):
     username: str
     email: str
     is_active: bool
-    created_at: datetime
     role_id: int
+    role_name: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm_user(cls, user):
+        return cls(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            is_active=user.is_active,
+            role_id=user.role_id,
+            role_name=user.role.name if user.role else None,
+            created_at=user.created_at,
+            updated_at=user.updated_at
+        )
 
 
 class UserInDB(UserResponse):

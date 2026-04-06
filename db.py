@@ -1,8 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from config import Settings
-
-settings = Settings()
+from config import settings
 engine = create_async_engine(settings.DATABASE_URL)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False)
 Base = declarative_base()
@@ -26,7 +24,7 @@ async def init_db():
             roles = [
                 Role(name='admin', description='Administrator with full access to create, read, update, delete records and manage users'),
                 Role(name='analyst', description='Analyst can view and analyze all users financial records and access cross-user analytics and insights'),
-                Role(name='viewer', description='Viewer can only view and manage their own financial records. No access to other users data or analytics')
+                Role(name='viewer', description='Viewer can only view their own financial records. No access to other users data or analytics')
             ]
             session.add_all(roles)
             await session.commit()

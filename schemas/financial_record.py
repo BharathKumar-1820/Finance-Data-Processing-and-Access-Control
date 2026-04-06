@@ -4,17 +4,18 @@ from typing import Optional
 from decimal import Decimal
 
 class FinancialRecordCreate(BaseModel):
-    type: str = Field(..., description="Type: 'income' or 'expense'")
-    amount: Decimal = Field(..., description="Amount must be greater than 0")
-    category: str = Field(..., max_length=100, description="Category of transaction")
+    type: str = Field(..., description="'income' or 'expense'")
+    amount: Decimal = Field(..., gt=0)
+    category: str = Field(..., max_length=100)
     date: date
+    user_id: int
     description: Optional[str] = Field(None, max_length=256)
     
     @field_validator('type')
     @classmethod
     def validate_type(cls, v):
         if v not in ['income', 'expense']:
-            raise ValueError("Type must be 'income' or 'expense'")
+            raise ValueError("Type must be 'income' or 'expense' (case-sensitive)")
         return v
     
     @field_validator('amount')
@@ -23,15 +24,15 @@ class FinancialRecordCreate(BaseModel):
         if v is None:
             raise ValueError("Amount is required")
         if v <= 0:
-            raise ValueError("Amount must be greater than 0")
+            raise ValueError("Amount must be greater than 0.00")
         return v
 
 
 class FinancialRecordUpdate(BaseModel):
-    type: Optional[str] = Field(None, description="Type: 'income' or 'expense'")
-    amount: Optional[Decimal] = Field(None)
+    type: Optional[str] = Field(None)
+    amount: Optional[Decimal] = Field(None, gt=0)
     category: Optional[str] = Field(None, max_length=100)
-    date: Optional[date] = None # type: ignore
+    date: Optional[date] = None  # type: ignore
     description: Optional[str] = Field(None, max_length=256)
     
     @field_validator('type')
@@ -45,7 +46,7 @@ class FinancialRecordUpdate(BaseModel):
     @classmethod
     def validate_amount(cls, v):
         if v is not None and v <= 0:
-            raise ValueError("Amount must be greater than 0")
+            raise ValueError("Amount must be greater than 0.00")
         return v
 
 

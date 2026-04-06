@@ -4,8 +4,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from db import engine, Base, async_session, init_db
-from routers import users, financial_records, dashboard
-from utils.exceptions import NotFoundError, UnauthorizedError, ValidationError
+from routers import users, financial_records, dashboard, auth
+from utils.exceptions import NotFoundError, UnauthorizedError, ForbiddenError, ValidationError
 from dotenv import load_dotenv
 import logging
 
@@ -42,12 +42,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(financial_records.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
@@ -62,6 +63,13 @@ async def not_found_exception_handler(request, exc: NotFoundError):
 
 @app.exception_handler(UnauthorizedError)
 async def unauthorized_exception_handler(request, exc: UnauthorizedError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(ForbiddenError)
+async def forbidden_exception_handler(request, exc: ForbiddenError):
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail}

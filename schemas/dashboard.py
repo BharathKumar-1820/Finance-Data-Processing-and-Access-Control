@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import date, datetime
-from typing import List, Optional
+from typing import Optional
 from decimal import Decimal
 
 class SummaryResponse(BaseModel):
@@ -11,6 +11,7 @@ class SummaryResponse(BaseModel):
 
 class CategoryBreakdownResponse(BaseModel):
     category: str = Field(..., max_length=100)
+    type: str = Field(..., description="'income' or 'expense'")
     total_amount: Decimal = Field(..., ge=0)
 
 
@@ -22,6 +23,9 @@ class RecentActivityResponse(BaseModel):
     category: str
     date: date
     description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 class TrendDataResponse(BaseModel):
