@@ -273,7 +273,7 @@ While I could have abstracted database calls into dedicated "Services" folders, 
 ### 5. Passwords & System Setup
 Passwords are automatically hashed with bcrypt before storing. When the application first establishes its database connection (`init_db` upon startup), it securely "seeds" the PostgreSQL tables with the three mandatory roles (admin, analyst, viewer) and creates an initial `admin` / `admin123` profile. This guarantees a highly fluid developer experience where new developers can instantly spin up the repo and successfully authenticate without writing manual database injection scripts.
 
-# In Future I will Implement these features to get production ready project
+### In Future I will Implement these features to get production ready project
 
 Some things that would be nice to add later:
 - Unit tests with pytest
