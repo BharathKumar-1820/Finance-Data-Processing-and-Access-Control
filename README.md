@@ -242,6 +242,7 @@ The API returns standard HTTP status codes with descriptive error messages:
 {
   "detail": "User not found"
 }
+```
 
 ## Testing
 
